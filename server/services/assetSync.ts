@@ -7,6 +7,7 @@ import { decryptObject } from "../crypto";
 import { getAdapter } from "../exchanges";
 import { ExchangeName } from "../exchanges";
 import { getApiKeysByUserId, getWalletAddressesByUserId, createAssetSnapshot, updateApiKey, updateWalletAddress } from "../db";
+import { getCryptoPrices, convertCurrency } from "./priceService";
 
 export interface SyncResult {
   success: boolean;
@@ -22,7 +23,7 @@ export async function syncUserAssets(userId: number): Promise<SyncResult> {
     const apiKeyRecords = await getApiKeysByUserId(userId);
     const walletRecords = await getWalletAddressesByUserId(userId);
 
-    const allAssets: Record<string, { symbol: string; free: number; locked: number; total: number; source: string }> = {};
+    const allAssets: Record<string, any> = {};
     let hasErrors = false;
 
     // Sync from API keys (exchanges)
@@ -93,13 +94,31 @@ export async function syncUserAssets(userId: number): Promise<SyncResult> {
       }
     }
 
+    // Get prices for all assets and calculate total value
+    const symbols = Array.from(new Set(Object.values(allAssets).map((a: any) => a.symbol)));
+    const prices = await getCryptoPrices(symbols, "usd");
+
+    let totalValueUsd = 0;
+    const assetsWithPrices = { ...allAssets };
+
+    for (const [key, asset] of Object.entries(allAssets)) {
+      const assetData = asset as any;
+      const price = prices[assetData.symbol] || 0;
+      const assetValue = assetData.total * price;
+      totalValueUsd += assetValue;
+      assetData.priceUsd = price;
+      assetData.valueUsd = assetValue;
+    }
+
+    // Convert to TWD
+    const totalValueTwd = await convertCurrency(totalValueUsd, "usd", "twd");
+
     // Create asset snapshot
-    // TODO: Get current prices from CoinGecko/CoinMarketCap and calculate total values
     const snapshot = {
       userId,
-      totalValueUsd: "0.00",
-      totalValueTwd: "0.00",
-      assetsData: JSON.stringify(allAssets),
+      totalValueUsd: totalValueUsd.toFixed(2),
+      totalValueTwd: totalValueTwd.toFixed(2),
+      assetsData: JSON.stringify(assetsWithPrices),
       source: "auto_sync" as const,
     };
 
