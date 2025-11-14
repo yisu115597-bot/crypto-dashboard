@@ -147,3 +147,15 @@
 - [x] 建立錯誤處理和重試機制
 - [x] 整合到資產同步服務
 - [x] 測試和驗證
+
+
+## Phase 7: 本地自託管部署
+
+### 11. 本地部署文件和指南
+- [x] 完整的本地安裝指南 (INSTALL_LOCAL.md)
+- [x] 快速啟動指南 (QUICKSTART_LOCAL.md)
+- [x] GitHub 推送和管理指南 (GITHUB_SETUP.md)
+- [x] 環境變數範本 (.env.example)
+- [ ] 自動化部署腳本
+- [ ] Docker 容器化配置
+- [ ] 監控和告警設定
