@@ -159,3 +159,13 @@
 - [ ] 自動化部署腳本
 - [ ] Docker 容器化配置
 - [ ] 監控和告警設定
+
+
+### 12. Docker 容器化和自動化部署
+- [x] Dockerfile 配置
+- [x] docker-compose.yml 配置
+- [x] 自動化部署指本 (deploy.sh)
+- [x] Docker 使用指南
+- [x] Nginx 反向代理配置
+- [x] MySQL 初始化指本
+- [x] .dockerignore 配置
