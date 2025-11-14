@@ -8,6 +8,7 @@ import { getAdapter } from "../exchanges";
 import { ExchangeName } from "../exchanges";
 import { getApiKeysByUserId, getWalletAddressesByUserId, createAssetSnapshot, updateApiKey, updateWalletAddress } from "../db";
 import { getCryptoPrices, convertCurrency } from "./priceService";
+import { scanWallet } from "./blockchainScanner";
 
 export interface SyncResult {
   success: boolean;
@@ -75,10 +76,44 @@ export async function syncUserAssets(userId: number): Promise<SyncResult> {
       if (!walletRecord.isActive) continue;
 
       try {
-        // TODO: Implement blockchain wallet scanning
-        // This will require integration with Etherscan, BscScan, etc.
-        // For now, we'll skip wallet syncing
+        // Scan blockchain wallet
+        const scanResult = await scanWallet(walletRecord.network, walletRecord.address);
 
+        // Add native coin balance
+        if (scanResult.native) {
+          const key = `${walletRecord.network}:${scanResult.native.symbol}`;
+          const nativeBalance = parseFloat(scanResult.native.balance) / Math.pow(10, scanResult.native.decimals);
+
+          if (nativeBalance > 0) {
+            allAssets[key] = {
+              symbol: scanResult.native.symbol,
+              free: nativeBalance,
+              locked: 0,
+              total: nativeBalance,
+              source: `wallet:${walletRecord.network}`,
+              contractAddress: "native",
+            };
+          }
+        }
+
+        // Add token balances
+        for (const token of scanResult.tokens) {
+          const key = `${walletRecord.network}:${token.symbol}`;
+          const tokenBalance = parseFloat(token.balance) / Math.pow(10, token.decimals);
+
+          if (tokenBalance > 0) {
+            allAssets[key] = {
+              symbol: token.symbol,
+              free: tokenBalance,
+              locked: 0,
+              total: tokenBalance,
+              source: `wallet:${walletRecord.network}`,
+              contractAddress: token.contractAddress,
+            };
+          }
+        }
+
+        // Update last sync time
         await updateWalletAddress(walletRecord.id, {
           lastSyncedAt: new Date(),
           lastSyncError: null,
