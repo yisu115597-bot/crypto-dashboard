@@ -30,8 +30,9 @@ RUN npm install -g pnpm
 # 安裝 dumb-init（用於正確的信號處理）
 RUN apk add --no-cache dumb-init
 
-# 複製 package.json
+# 複製 package.json 和 patches 目錄
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 
 # 只安裝生產依賴
 RUN pnpm install --prod --frozen-lockfile
