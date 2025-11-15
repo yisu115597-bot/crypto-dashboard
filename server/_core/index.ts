@@ -1,7 +1,15 @@
 import "dotenv/config";
+import * as dotenv from "dotenv";
+import path from "path";
+
+// Load .env.local if it exists
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
+
+
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import cookieParser from "cookie-parser";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
@@ -39,6 +47,9 @@ async function startServer() {
   // 🔍 調試：打印環境變量
   console.log("[DEBUG] NODE_ENV:", process.env.NODE_ENV);
   console.log("[DEBUG] ENABLE_TEST_AUTH:", process.env.ENABLE_TEST_AUTH);
+
+  // ✅ 必須先設置 cookie 解析
+  app.use(cookieParser());
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
