@@ -6,8 +6,9 @@ WORKDIR /app
 # 安裝 pnpm
 RUN npm install -g pnpm
 
-# 複製 package.json 和 lock 檔案
+# 複製 package.json、lock 檔案和 patches 目錄
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 
 # 安裝依賴
 RUN pnpm install --frozen-lockfile
