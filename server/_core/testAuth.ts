@@ -1,0 +1,140 @@
+/**
+ * 本地測試認證模式
+ * 用於本地開發時跳過 OAuth，直接使用測試用戶
+ */
+
+import { Request, Response, NextFunction } from "express";
+import { COOKIE_NAME } from "@shared/const";
+import { getSessionCookieOptions } from "./cookies";
+import { ENV } from "./env";
+
+// 測試用戶列表
+export const TEST_USERS = {
+  user1: {
+    id: 1,
+    openId: "test-user-1",
+    name: "測試用戶 1",
+    email: "test1@example.com",
+    role: "user" as const,
+  },
+  admin: {
+    id: 2,
+    openId: "test-admin",
+    name: "測試管理員",
+    email: "admin@example.com",
+    role: "admin" as const,
+  },
+};
+
+/**
+ * 簡單的 Token 編碼/解碼
+ */
+function encodeTestToken(user: (typeof TEST_USERS)[keyof typeof TEST_USERS]) {
+  const payload = JSON.stringify({
+    openId: user.openId,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 days
+  });
+  return Buffer.from(payload).toString("base64");
+}
+
+/**
+ * 本地測試認證中間件
+ * 如果 ENABLE_TEST_AUTH=true，則跳過 OAuth，使用測試用戶
+ */
+export function testAuthMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  // 只在開發環境且啟用測試模式時使用
+  if (process.env.NODE_ENV !== "development" || !process.env.ENABLE_TEST_AUTH) {
+    return next();
+  }
+
+  // 如果已有有效的 session cookie，跳過
+  const existingCookie = req.cookies[COOKIE_NAME];
+  if (existingCookie) {
+    return next();
+  }
+
+  // 檢查是否有 test_user 查詢參數
+  const testUser = (req.query.test_user as string) || "user1";
+  const user = TEST_USERS[testUser as keyof typeof TEST_USERS];
+
+  if (!user) {
+    return next();
+  }
+
+  // 建立 Token
+  const token = encodeTestToken(user);
+
+  // 設定 session cookie
+  const cookieOptions = getSessionCookieOptions(req);
+  res.cookie(COOKIE_NAME, token, cookieOptions);
+
+  console.log(`[Test Auth] Logged in as: ${user.name} (${user.openId})`);
+  next();
+}
+
+/**
+ * 測試認證路由
+ * 提供切換測試用戶的端點
+ */
+export function setupTestAuthRoutes(app: any) {
+  if (process.env.NODE_ENV !== "development" || !process.env.ENABLE_TEST_AUTH) {
+    return;
+  }
+
+  // 登入測試用戶
+  app.get("/api/test-auth/login/:user", (req: Request, res: Response) => {
+    const testUser = req.params.user;
+    const user = TEST_USERS[testUser as keyof typeof TEST_USERS];
+
+    if (!user) {
+      return res.status(404).json({
+        error: "User not found",
+        available: Object.keys(TEST_USERS),
+      });
+    }
+
+    const token = encodeTestToken(user);
+    const cookieOptions = getSessionCookieOptions(req);
+    res.cookie(COOKIE_NAME, token, cookieOptions);
+
+    res.json({
+      success: true,
+      message: `Logged in as ${user.name}`,
+      user,
+    });
+  });
+
+  // 登出
+  app.get("/api/test-auth/logout", (req: Request, res: Response) => {
+    const cookieOptions = getSessionCookieOptions(req);
+    res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    res.json({ success: true, message: "Logged out" });
+  });
+
+  // 列出可用的測試用戶
+  app.get("/api/test-auth/users", (req: Request, res: Response) => {
+    res.json({
+      available: Object.entries(TEST_USERS).map(([key, user]) => ({
+        key,
+        name: user.name,
+        role: user.role,
+        email: user.email,
+      })),
+      loginUrl: (userKey: string) => `/api/test-auth/login/${userKey}`,
+    });
+  });
+
+  console.log("[Test Auth] Test authentication routes enabled");
+  console.log("[Test Auth] Available users:", Object.keys(TEST_USERS));
+  console.log("[Test Auth] Login: /api/test-auth/login/{user}");
+  console.log("[Test Auth] Logout: /api/test-auth/logout");
+  console.log("[Test Auth] Users: /api/test-auth/users");
+}

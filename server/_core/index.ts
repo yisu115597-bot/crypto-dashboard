@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { testAuthMiddleware, setupTestAuthRoutes } from "./testAuth";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -33,6 +34,13 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // 本地測試認證（開發模式）
+  if (process.env.NODE_ENV === "development" && process.env.ENABLE_TEST_AUTH) {
+    app.use(testAuthMiddleware);
+    setupTestAuthRoutes(app);
+    console.log("[Test Auth] Test authentication mode enabled");
+    console.log("[Test Auth] Visit http://localhost:3000/api/test-auth/login/user1 to login");
+  }
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // tRPC API
