@@ -55,12 +55,26 @@ export function testAuthMiddleware(
     return next();
   }
 
+  // ✅ 手動解析 cookies（不需要 cookie-parser 中間件）
+  const cookieHeader = req.headers.cookie;
+  const cookies: Record<string, string> = {};
+  
+  if (cookieHeader) {
+    cookieHeader.split(';').forEach((cookie) => {
+      const [name, value] = cookie.split('=');
+      if (name && value) {
+        cookies[name.trim()] = decodeURIComponent(value.trim());
+      }
+    });
+  }
+
   // 如果已有有效的 session cookie，跳過
-  const existingCookie = req.cookies[COOKIE_NAME];
+  const existingCookie = cookies[COOKIE_NAME];
   if (existingCookie) {
     return next();
   }
 
+  
   // 檢查是否有 test_user 查詢參數
   const testUser = (req.query.test_user as string) || "user1";
   const user = TEST_USERS[testUser as keyof typeof TEST_USERS];
