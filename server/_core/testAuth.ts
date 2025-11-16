@@ -32,7 +32,8 @@ export const TEST_USERS = {
 async function createTestToken(
   user: (typeof TEST_USERS)[keyof typeof TEST_USERS]
 ): Promise<string> {
-  const secret = new TextEncoder().encode(ENV.JWT_SECRET || "test-secret-key");
+  const secret = new TextEncoder().encode(
+    ENV.cookieSecret || "dev-test-secret-key-do-not-use-in-production");
 
   const token = await jose.SignJWT(new Object({
     openId: user.openId,
