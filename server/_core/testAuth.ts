@@ -6,7 +6,6 @@ import { Request, Response, NextFunction } from "express";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./cookies";
 import { ENV } from "./env";
-import * as jose from "jose";
 
 // 測試用戶列表
 export const TEST_USERS = {
@@ -27,26 +26,23 @@ export const TEST_USERS = {
 };
 
 /**
- * ✅ 使用 jose 庫創建正確的 JWT token
+ * 創建測試 token - 使用簡單的 JSON 編碼
+ * （測試環境，不需要真正的 JWT 簽名）
  */
-async function createTestToken(
+function createTestToken(
   user: (typeof TEST_USERS)[keyof typeof TEST_USERS]
-): Promise<string> {
-  const secret = new TextEncoder().encode(
-    ENV.cookieSecret || "dev-test-secret-key-do-not-use-in-production");
-
-  const token = await jose.SignJWT(new Object({
+): string {
+  const payload = JSON.stringify({
     openId: user.openId,
     name: user.name,
     email: user.email,
     role: user.role,
-  }))
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("7d")
-    .sign(secret);
-
-  return token;
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 days
+  });
+  
+  // 用 Base64 編碼作為簡單的序列化方式
+  return Buffer.from(payload).toString("base64");
 }
 
 /**
@@ -63,7 +59,7 @@ export function testAuthMiddleware(
     return next();
   }
 
-  // 手動解析 cookies（不需要 cookie-parser 中間件）
+  // 手動解析 cookies
   const cookieHeader = req.headers.cookie;
   const cookies: Record<string, string> = {};
 
@@ -76,7 +72,7 @@ export function testAuthMiddleware(
     });
   }
 
-  // 如果已有有效的 session cookie，跳過
+  // 如果已有 session cookie，跳過
   const existingCookie = cookies[COOKIE_NAME];
   if (existingCookie) {
     return next();
@@ -89,24 +85,20 @@ export function testAuthMiddleware(
     return next();
   }
 
-  // 異步操作需要用 setImmediate 包裝
-  setImmediate(async () => {
-    try {
-      const token = await createTestToken(user);
-      const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, token, cookieOptions);
-      console.log(`[Test Auth] Logged in as: ${user.name} (${user.openId})`);
-    } catch (error) {
-      console.error("[Test Auth] Failed to create token:", error);
-    }
-  });
+  try {
+    const token = createTestToken(user);
+    const cookieOptions = getSessionCookieOptions(req);
+    res.cookie(COOKIE_NAME, token, cookieOptions);
+    console.log(`[Test Auth] Logged in as: ${user.name} (${user.openId})`);
+  } catch (error) {
+    console.error("[Test Auth] Failed to create token:", error);
+  }
 
   next();
 }
 
 /**
  * 測試認證路由
- * 提供切換測試用戶的端點
  */
 export function setupTestAuthRoutes(app: any) {
   if (process.env.NODE_ENV !== "development" || !process.env.ENABLE_TEST_AUTH) {
@@ -114,7 +106,7 @@ export function setupTestAuthRoutes(app: any) {
   }
 
   // 登入測試用戶
-  app.get("/api/test-auth/login/:user", async (req: Request, res: Response) => {
+  app.get("/api/test-auth/login/:user", (req: Request, res: Response) => {
     const testUser = req.params.user;
     const user = TEST_USERS[testUser as keyof typeof TEST_USERS];
     if (!user) {
@@ -125,9 +117,10 @@ export function setupTestAuthRoutes(app: any) {
     }
 
     try {
-      const token = await createTestToken(user);
+      const token = createTestToken(user);
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, token, cookieOptions);
+
       res.json({
         success: true,
         message: `Logged in as ${user.name}`,
