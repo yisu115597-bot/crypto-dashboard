@@ -54,10 +54,7 @@ export default function Home() {
           </p>
 
           <Button
-            onClick={() => {
-              // 使用測試認證登入
-              window.location.href = "/api/test-auth/login/user1";
-            }}
+            onClick={() => setLocation("/login")}  // 改這裡 - 導向登入頁面
             size="lg"
             className="w-full bg-blue-600 hover:bg-blue-700"
           >
