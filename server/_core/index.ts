@@ -1,11 +1,8 @@
 import "dotenv/config";
 import * as dotenv from "dotenv";
 import path from "path";
-
 // Load .env.local if it exists
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
-
-
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -67,9 +64,15 @@ async function startServer() {
     console.log("[DEBUG] ENABLE_TEST_AUTH:", process.env.ENABLE_TEST_AUTH);
   }
 
-  
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // ✅ 修復：在 tRPC 之前註冊測試認證路由
+  if (process.env.NODE_ENV === "development" && process.env.ENABLE_TEST_AUTH) {
+    console.log("[✅ DEBUG] Registering test auth routes BEFORE Vite setup");
+    setupTestAuthRoutes(app);
+    console.log("[Test Auth] Test routes registered");
+  }
 
   // tRPC API
   app.use(
@@ -87,24 +90,13 @@ async function startServer() {
     serveStatic(app);
   }
 
-  // ✅ 修復：在 Vite 之後再次設置測試認證路由
-  if (process.env.NODE_ENV === "development" && process.env.ENABLE_TEST_AUTH) {
-    console.log("[✅ DEBUG] Registering test auth routes AFTER Vite setup");
-    setupTestAuthRoutes(app);
-    console.log("[Test Auth] Test routes prioritized after Vite setup");
-  } else {
-    console.log("[❌ DEBUG] NOT registering test auth routes after Vite setup");
-  }
-
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
-
   if (port !== preferredPort) {
     console.log(
       `Port ${preferredPort} is busy, using port ${port} instead`
     );
   }
-
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
