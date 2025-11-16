@@ -34,13 +34,14 @@ function createTestToken(
 ): string {
   const payload = JSON.stringify({
     openId: user.openId,
+    appId: ENV.appId || "test-app",
     name: user.name,
     email: user.email,
     role: user.role,
     iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 days
+    exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
   });
-  
+
   // 用 Base64 編碼作為簡單的序列化方式
   return Buffer.from(payload).toString("base64");
 }
