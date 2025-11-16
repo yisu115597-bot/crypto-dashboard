@@ -198,39 +198,58 @@ class SDKServer {
   }
 
   async verifySession(
-    cookieValue: string | undefined | null
-  ): Promise<{ openId: string; appId: string; name: string } | null> {
-    if (!cookieValue) {
-      console.warn("[Auth] Missing session cookie");
-      return null;
-    }
+  cookieValue: string | undefined | null
+): Promise<{ openId: string; appId: string; name: string } | null> {
+  if (!cookieValue) {
+    console.warn("[Auth] Missing session cookie");
+    return null;
+  }
 
-    try {
-      const secretKey = this.getSessionSecret();
-      const { payload } = await jwtVerify(cookieValue, secretKey, {
-        algorithms: ["HS256"],
-      });
-      const { openId, appId, name } = payload as Record<string, unknown>;
-
-      if (
-        !isNonEmptyString(openId) ||
-        !isNonEmptyString(appId) ||
-        !isNonEmptyString(name)
-      ) {
-        console.warn("[Auth] Session payload missing required fields");
+  try {
+    // ✅ 在測試模式下跳過JWT簽名驗證
+    if (process.env.NODE_ENV === "development" && process.env.ENABLE_TEST_AUTH) {
+      console.log("[Auth] Test mode: Skipping JWT signature verification");
+      try {
+        // 直接解析Base64編碼的payload
+        const decoded = JSON.parse(Buffer.from(cookieValue, "base64").toString("utf-8"));
+        return {
+          openId: decoded.openId,
+          appId: decoded.appId || ENV.appId || "test-app",
+          name: decoded.name || "",
+        };
+      } catch (e) {
+        console.warn("[Auth] Failed to parse test token:", e);
         return null;
       }
+    }
 
-      return {
-        openId,
-        appId,
-        name,
-      };
-    } catch (error) {
-      console.warn("[Auth] Session verification failed", String(error));
+    // 生產環境:執行JWT驗證
+    const secretKey = this.getSessionSecret();
+    const { payload } = await jwtVerify(cookieValue, secretKey, {
+      algorithms: ["HS256"],
+    });
+    const { openId, appId, name } = payload as Record<string, unknown>;
+
+    if (
+      !isNonEmptyString(openId) ||
+      !isNonEmptyString(appId) ||
+      !isNonEmptyString(name)
+    ) {
+      console.warn("[Auth] Session payload missing required fields");
       return null;
     }
+
+    return {
+      openId,
+      appId,
+      name,
+    };
+  } catch (error) {
+    console.warn("[Auth] Session verification failed", String(error));
+    return null;
   }
+}
+
 
   async getUserInfoWithJwt(
     jwtToken: string
